@@ -138,5 +138,5 @@ while True:
     
     # Adafruit IO delimitador de tiempo: max 1 solicitud cada 15 segundos    
     gc.collect()
-    time.sleep(15.0)
+    time.sleep(30.0)
 
