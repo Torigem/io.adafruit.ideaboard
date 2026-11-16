@@ -1,10 +1,16 @@
 import socketpool
+import digitalio
 import ssl
 import wifi
 import adafruit_requests as requests
 import time
 import gc
+import board
 from ideasense import IdeaSense
+from ideaboard import IdeaBoard
+
+ib = IdeaBoard()
+idea = IdeaSense()
 
 # Credenciales para Adafruit IO
 AIO_USERNAME = ""
@@ -15,10 +21,10 @@ FEED_NAME_HUMID = "Humidity"
 FEED_NAME_RAM = "RAM"
 
 # Adafruit IO HTTP REST endpoint URL
-AIO_URL_LIGHT = f"http://io.adafruit.com/api/v2/username/feeds/light/data"
-AIO_URL_TEMP = f"http://io.adafruit.com/api/v2/username/feeds/temperature/data"
-AIO_URL_HUMID = f"http://io.adafruit.com/api/v2/username/feeds/humedad/data"
-AIO_URL_RAM = f"http://io.adafruit.com/api/v2/username/feeds/ram/data"
+AIO_URL_LIGHT = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/light/data"
+AIO_URL_TEMP = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/temperature/data"
+AIO_URL_HUMID = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/humedad/data"
+AIO_URL_RAM = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/ram/data"
 
 # Headers required for authentication and content type
 headers = {
@@ -27,13 +33,26 @@ headers = {
     "Connection": "close"
 }
 
+# Configurar pin conectado a la bomgba
+pump = digitalio.DigitalInOut(board.IO18)
+pump.direction = digitalio.Direction.OUTPUT
+pump.value = False 
+
+def check_agua_bomba(light_level, humid_level, pump_pin):
+    if light_level < 30 and humid_level < 80:
+        print("Condición cumplida: Bomba ENCENDIDA.")
+        ib.pixel = (150,0,0)
+        pump_pin.value = True
+        time.sleep(60.0)
+        pump_pin.value = False
+        print("Bomba de agua APAGADA despues de 1 minuto")
+    else:
+        ib.pixel = (0, 155, 0)
+        print("Condicion no cumplida: Bomba APAGADA")
+    return check_agua_bomba
+
 # Definir funcion de medir sensores 
-
 def medir_sensores():
-
-    # Delimitador de reporte entrante
-    print("*********** REPORTE ENTRANTE ***********")
-
      # Medir Luz 
     light_level = idea.light
     print(f"Light level is: {light_level}")
@@ -58,13 +77,21 @@ def nic_status():
     IP_add = wifi.radio.ipv4_address
     MAC_add = wifi.radio.mac_address
 
-    print(f"My IP address: {wifi.radio.ipv4_address}")
-    print(f"My MAC address: {wifi.radio.mac_address}")
-
     return IP_add, MAC_add
 
-# Invocar funciones IdeaSense
-idea = IdeaSense()
+# Funcion para mostrar valores de sensores en consola
+
+def Consola():
+    print("*********** Consola de sensores ***********")
+    print(f"Light level is: {idea.light}")
+    print(f"Temp level is: {idea.temp}")
+    print(f"Humid level is: {idea.humid}")
+    print(f"Free RAM: {gc.mem_free()} bytes")
+    print(f"My IP address: {wifi.radio.ipv4_address}")
+    print(f"My MAC address: {wifi.radio.mac_address}")
+    print("*********** Consola de sensores ***********")
+
+
 
 # Socket pool actuando como administrador de canales de comunicacion disponibles
 socket = socketpool.SocketPool(wifi.radio)
@@ -129,13 +156,16 @@ while True:
 
     # Corte de report
 
-        print("*********** FINAL ***********")
-
         # Mostrar error 
     except Exception as e:
         print("Failed to send data:", repr(e)) 
         time.sleep(0.5)
     
+    # Adafruit IO delimitador de tiempo: max 1 solicitud cada 15 segundos    
+    gc.collect()
+    time.sleep(15.0)
+
+
     # Adafruit IO delimitador de tiempo: max 1 solicitud cada 15 segundos    
     gc.collect()
     time.sleep(30.0)
