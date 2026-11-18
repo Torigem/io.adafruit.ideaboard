@@ -9,10 +9,11 @@ import board
 from ideasense import IdeaSense
 from ideaboard import IdeaBoard
 
+# Inicializar IdeaBoard e IdeaSense #
 ib = IdeaBoard()
 idea = IdeaSense()
 
-# Credenciales para Adafruit IO
+# CREDENCIALES DE ADAFRUIT IO #
 AIO_USERNAME = "AIO_USERNAME"
 AIO_KEY = "AIO_KEY"
 FEED_NAME_LIGHT = "Light"
@@ -20,25 +21,26 @@ FEED_NAME_TEMP = "Temperature"
 FEED_NAME_HUMID = "Humidity"
 FEED_NAME_RAM = "RAM"
 
-# Adafruit IO HTTP REST endpoint URL
+# ADAFRUIT IO URLS PARA CADA FEED DE SENSORES # 
 AIO_URL_LIGHT = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/light/data"
 AIO_URL_TEMP = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/temperature/data"
 AIO_URL_HUMID = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/humedad/data"
 AIO_URL_RAM = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/ram/data"
 
-# Headers required for authentication and content type
+# Configurar encabezados HTTP para autenticación y tipo de contenido #
 headers = {
-    "X-AIO-Key": "AIO_KEY",
+    "AIO-Key": "AIO_KEY",
     "Content-Type": "application/json",
     "Connection": "close"
 }
 
-# Configurar pin conectado a la bomgba
+# CONFIGURAR PINES DE SALIDA PARA BOMBA DE AGUA Y LED INDICADOR # 
 pump = digitalio.DigitalInOut(board.IO18)
 pump.direction = digitalio.Direction.OUTPUT
 pump.value = False 
 
-# Definir funcion de medir sensores 
+# DEFINIR FUNCIONES DE SENSORES #
+
 def medir_sensores():
      # Medir Luz 
     light_level = idea.light   
@@ -51,7 +53,8 @@ def medir_sensores():
 
     return light_level, temp_level, humid_level, ram_space
 
-# Funcion para definir mostrar configuracion NIC
+# DEFINIR FUNCION PARA MOSTRAR ESTADO DE LA TARJETA DE RED (NIC) #
+
 def nic_status():
     
     # Mostrar direccion IP
@@ -59,6 +62,8 @@ def nic_status():
     MAC_add = wifi.radio.mac_address
 
     return IP_add, MAC_add
+
+# DEFINIR FUNCION PARA CONTROLAR BOMBA DE AGUA Y LED INDICADOR #
 
 def check_agua_bomba(light_level, humid_level, pump_pin):
     if light_level < 30 and humid_level < 90:
@@ -76,16 +81,15 @@ def check_agua_bomba(light_level, humid_level, pump_pin):
 # Socket pool actuando como administrador de canales de comunicacion disponibles
 socket = socketpool.SocketPool(wifi.radio)
 
-# Tomar el socket pool creado por en socket para saber como enviar y recibir data por la red
-https = requests.Session(socket, None)
-
-# Conectar WiFi
+# CONECTAR A WIFI #
 print("Connecting to WiFi...")
 wifi.radio.connect("SSID", "password")
 print("Connected to Wifi!")
 
-# Funcion para mostrar valores de sensores en consola
+# Tomar el socket pool creado por en socket para saber como enviar y recibir data por la red
+http = requests.Session(socket, None)
 
+# Funcion para mostrar valores de sensores en consola
 def Consola():
     print("*********** MENSAJE ENTRANTE ***********")
     print(f"Light level is: {idea.light}")
@@ -113,16 +117,16 @@ while True:
     payload_ram = {"value": ram_space}
 
     
-    # Llamar funcion de la bomba y LED #
+    # LLAMAR FUNCION DE LA BOMBA DE AGUA Y LED #
     check_agua_bomba(light_level, humid_level, pump)
 
 
     try:
         
-        # Invocar funcion de consola 
+        # INVOCAR FUNCION PARA MOSTRAR VALORES DE SENSORES EN CONSOLA #
         Consola()
         # Enviar data por solicitud HTTP POST luz
-        response_light = https.post(AIO_URL_LIGHT, json=payload_light, headers=headers)
+        response_light = http.post(AIO_URL_LIGHT, json=payload_light, headers=headers)
         print(f"Light Response:{response_light.status_code}")
         response_light.close()
         del response_light
@@ -131,7 +135,7 @@ while True:
         time.sleep(0.5)
 
         # Enviar data por solicitud HTTP POST temp
-        response_temp = https.post(AIO_URL_TEMP, json=payload_temp, headers=headers)
+        response_temp = http.post(AIO_URL_TEMP, json=payload_temp, headers=headers)
         print(f"Temp Response:{response_temp.status_code}")
         response_temp.close()
         del response_temp
@@ -140,16 +144,16 @@ while True:
         time.sleep(0.5)
 
         # Enviar data por solicitud HTTP POST humid
-        response_humid = https.post(AIO_URL_HUMID, json=payload_humid, headers=headers)
+        response_humid = http.post(AIO_URL_HUMID, json=payload_humid, headers=headers)
         print(f"Humidity Response:{response_humid.status_code}")
         response_humid.close()
         del response_humid
 
-        # Paussa entre llamadas
+        # Pausa entre llamadas
         time.sleep(0.5)
 
         # Enviar data por solicitud HTTP POST RAM
-        response_ram = https.post(AIO_URL_RAM, json=payload_ram, headers=headers)
+        response_ram = http.post(AIO_URL_RAM, json=payload_ram, headers=headers)
         print(f"Available RAM Response:{response_ram.status_code}")
         response_ram.close()
         del response_ram
