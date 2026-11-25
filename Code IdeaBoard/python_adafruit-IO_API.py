@@ -4,6 +4,7 @@ import ssl
 import wifi
 import adafruit_requests as requests
 import time
+import os
 import gc
 import board
 from ideasense import IdeaSense
@@ -29,7 +30,7 @@ AIO_URL_RAM = f"http://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/ram/data"
 
 # Configurar encabezados HTTP para autenticación y tipo de contenido #
 headers = {
-    "AIO-Key": "AIO_KEY",
+    "AIO-Key": AIO_KEY,
     "Content-Type": "application/json",
     "Connection": "close"
 }
@@ -38,6 +39,23 @@ headers = {
 pump = digitalio.DigitalInOut(board.IO18)
 pump.direction = digitalio.Direction.OUTPUT
 pump.value = False 
+
+# CONFIGURAR LOG PARA CSV #
+
+CSV_FILE = "/sensor_data_log.csv"
+
+def log_data_to_csv(light_level, temp_level, humid_level, ram_space):
+    # Verificar si el archivo CSV existe, si no, crear uno nuevo con encabezados
+    if not os.path.exists(CSV_FILE):
+        with open(CSV_FILE, "w") as f:
+            f.write("Light Level,Temperature Level,Humidity Level,RAM Space\n")
+
+    # Agregar los datos de los sensores al archivo CSV
+    with open(CSV_FILE, "a") as f:
+        f.write(f"{light_level},{temp_level},{humid_level},{ram_space}\n")
+
+    except OSError as e:
+        print(f"Error writing to CSV file: {e}")
 
 # DEFINIR FUNCIONES DE SENSORES #
 
@@ -76,7 +94,7 @@ def check_agua_bomba(light_level, humid_level, pump_pin):
     else:
         ib.pixel = (0, 155, 0)
         print("Condicion no cumplida: Bomba APAGADA")
-    return check_agua_bomba
+    return None
 
 # Socket pool actuando como administrador de canales de comunicacion disponibles
 socket = socketpool.SocketPool(wifi.radio)
@@ -100,6 +118,8 @@ def Consola():
     print(f"My MAC address: {wifi.radio.mac_address}")
     print("*********** FIN DEL MENSAJE ***********")
 
+ciclo = 0
+
 # Abrir loop para enviar valores POST de sensores 
 while True:
 
@@ -116,7 +136,17 @@ while True:
     payload_humid = {"value": humid_level}
     payload_ram = {"value": ram_space}
 
-    
+
+    ciclo += 1
+    light_level, temp_level, humid_level, ram_space = medir_sensores()
+    IP_add, MAC_add = nic_status()
+
+    check_agua_bomba(light_level, humid_level, pump)
+
+    # Guardar datos en archivo CSV #
+    bomba_activa = (light_level < 30 and humid_level < 90)
+    log_data_to_csv(light_level, temp_level, humid_level, ram_space)
+
     # LLAMAR FUNCION DE LA BOMBA DE AGUA Y LED #
     check_agua_bomba(light_level, humid_level, pump)
 
